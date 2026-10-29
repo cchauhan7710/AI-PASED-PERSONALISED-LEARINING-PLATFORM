@@ -15,24 +15,32 @@ const app = express();
 const allowedOrigins = [
   process.env.CLIENT_URL,
   'http://localhost:5173',
-  'http://127.0.0.1:5173'
+  'http://127.0.0.1:5173',
+  'https://ai-pased-personalised-learining-platform.onrender.com',
+  'https://ai-pased-personalised-learining-platform-176a.onrender.com'
 ].filter(Boolean);
 
-// Middleware
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    const isAllowed = !origin ||
+      allowedOrigins.includes(origin) ||
+      origin.includes('onrender.com') ||
+      origin.includes('render.com') ||
+      origin.includes('localhost');
+
+    if (isAllowed) {
       callback(null, true);
       return;
     }
 
     callback(new Error('Not allowed by CORS'));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '1mb' }));
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/assessment', assessmentRoutes);
@@ -42,12 +50,10 @@ app.use('/api/progress', progressRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/topics', topicRoutes);
 
-// Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'AI Learning Path Generator API is running' });
 });
 
-// Centralized error handler
 app.use((err, req, res, next) => {
   console.error('Unhandled Server Error:', err);
   res.status(500).json({
