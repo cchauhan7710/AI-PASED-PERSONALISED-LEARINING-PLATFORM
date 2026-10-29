@@ -18,24 +18,35 @@ const generateToken = (id) => {
 const registerUser = async (req, res) => {
   try {
     const { name, email, password, confirmPassword } = req.body;
+    const normalizedName = String(name || '').trim();
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedPassword = String(password || '');
 
-    if (!name || !email || !password) {
+    if (!normalizedName || !normalizedEmail || !normalizedPassword) {
       return res.status(400).json({ success: false, message: 'Please enter all required fields' });
     }
 
-    if (confirmPassword && password !== confirmPassword) {
+    if (normalizedPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+    }
+
+    if (confirmPassword && normalizedPassword !== String(confirmPassword)) {
       return res.status(400).json({ success: false, message: 'Passwords do not match' });
     }
 
     const isConnected = mongoose.connection.readyState === 1;
 
     if (isConnected) {
-      const userExists = await User.findOne({ email });
+      const userExists = await User.findOne({ email: normalizedEmail });
       if (userExists) {
         return res.status(400).json({ success: false, message: 'User already exists with this email' });
       }
 
-      const user = await User.create({ name, email, password });
+      const user = await User.create({
+        name: normalizedName,
+        email: normalizedEmail,
+        password: normalizedPassword
+      });
 
       return res.status(201).json({
         success: true,
@@ -47,19 +58,18 @@ const registerUser = async (req, res) => {
         }
       });
     } else {
-      // In-Memory Fallback
-      const userExists = memoryUsers.find((u) => u.email.toLowerCase() === email.toLowerCase());
+      const userExists = memoryUsers.find((u) => u.email.toLowerCase() === normalizedEmail.toLowerCase());
       if (userExists) {
         return res.status(400).json({ success: false, message: 'User already exists with this email' });
       }
 
       const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
+      const hashedPassword = await bcrypt.hash(normalizedPassword, salt);
 
       const newUser = {
         _id: `mem-user-${Date.now()}`,
-        name,
-        email,
+        name: normalizedName,
+        email: normalizedEmail,
         password: hashedPassword
       };
 
@@ -77,7 +87,7 @@ const registerUser = async (req, res) => {
     }
   } catch (error) {
     console.error('Register error:', error.message);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message || 'Registration failed' });
   }
 };
 
@@ -87,16 +97,18 @@ const registerUser = async (req, res) => {
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedPassword = String(password || '');
 
-    if (!email || !password) {
+    if (!normalizedEmail || !normalizedPassword) {
       return res.status(400).json({ success: false, message: 'Please provide email and password' });
     }
 
     const isConnected = mongoose.connection.readyState === 1;
 
     if (isConnected) {
-      const user = await User.findOne({ email }).select('+password');
-      if (user && (await user.matchPassword(password))) {
+      const user = await User.findOne({ email: normalizedEmail }).select('+password');
+      if (user && (await user.matchPassword(normalizedPassword))) {
         return res.json({
           success: true,
           data: {
@@ -108,9 +120,8 @@ const loginUser = async (req, res) => {
         });
       }
     } else {
-      // In-Memory Fallback
-      const user = memoryUsers.find((u) => u.email.toLowerCase() === email.toLowerCase());
-      if (user && (await bcrypt.compare(password, user.password))) {
+      const user = memoryUsers.find((u) => u.email.toLowerCase() === normalizedEmail.toLowerCase());
+      if (user && (await bcrypt.compare(normalizedPassword, user.password))) {
         return res.json({
           success: true,
           data: {
@@ -125,7 +136,7 @@ const loginUser = async (req, res) => {
 
     return res.status(401).json({ success: false, message: 'Invalid email or password' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message || 'Login failed' });
   }
 };
 

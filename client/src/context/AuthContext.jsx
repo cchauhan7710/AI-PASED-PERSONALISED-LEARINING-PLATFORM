@@ -44,13 +44,18 @@ export const AuthProvider = ({ children }) => {
   const registerUser = async (name, email, password, confirmPassword) => {
     setError(null);
     try {
-      const res = await registerApi({ name, email, password, confirmPassword });
+      const res = await registerApi({
+        name: String(name || '').trim(),
+        email: String(email || '').trim().toLowerCase(),
+        password,
+        confirmPassword
+      });
       const { token, ...userData } = res.data.data;
       localStorage.setItem('learning_token', token);
       setUser(userData);
       return { success: true };
     } catch (err) {
-      const msg = err.response?.data?.message || 'Registration failed';
+      const msg = err.response?.data?.message || (err.message || 'Registration failed');
       setError(msg);
       return { success: false, message: msg };
     }
